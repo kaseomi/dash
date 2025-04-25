@@ -1,30 +1,20 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pickle
 import time
-from tensorflow.keras.models import load_model
-import plotly.express as px
 from datetime import datetime
+import plotly.express as px
+from modules.model_loader import load_all_models  # ✅ 캐시된 모델 로드
 
-@st.cache_resource
-def load_all_models():
-    with open("modules/model_utils.pkl", "rb") as f:
-        utils = pickle.load(f)
-    with open("modules/random_forest_regressors_by_machine.pkl", "rb") as f:
-        rul_model_dict = pickle.load(f)
-    with open("modules/downtime_risk_model.pkl", "rb") as f:
-        risk_model = pickle.load(f)
-    failure_model = load_model("modules/failure_prediction_model.h5")
-    return utils, rul_model_dict, risk_model, failure_model
-
-utils, rul_model_dict, risk_model, failure_model = load_all_models()
+# ✅ 모델 불러오기
+failure_model, utils, rul_models, risk_model = load_all_models()
 sensor_cols = utils["sensor_cols"]
 feature_cols = sensor_cols + ["delta_minutes"]
 seq_length = utils["seq_length"]
 scaler = utils["scaler"]
 label_encoder = utils["label_encoder"]
 
+# ✅ 랜덤 센서 생성 함수
 def generate_random_sensor():
     return {
         'temperature': np.random.normal(75, 10),
@@ -35,6 +25,7 @@ def generate_random_sensor():
         'delta_minutes': 1.0
     }
 
+# ✅ 머신 전체 평가 함수
 def evaluate_all_machines():
     result = []
     all_ready = True
@@ -45,7 +36,7 @@ def evaluate_all_machines():
             seq.pop(0)
         row_latest = seq[-1]
         df_latest = pd.DataFrame([row_latest])
-        rul_model_entry = rul_model_dict[mid]
+        rul_model_entry = rul_models[mid]
         X_rul = df_latest[sensor_cols].values
         if rul_model_entry.get("scaler"):
             X_rul = rul_model_entry["scaler"].transform(X_rul)
@@ -78,37 +69,20 @@ def evaluate_all_machines():
         })
     return pd.DataFrame(result), all_ready
 
+# ✅ 메인 대시보드 함수
 def maintenance_monitoring():
-    st.markdown(
-        """
+    st.markdown("""
         <style>
-        .main-title {
-            font-size: 30px;
-            font-weight: 600;
-            text-align: center;
-            padding: 15px;
-            margin-bottom: 10px;
-        }
-        .subtext {
-            font-size: 16px;
-            color: gray;
-            text-align: center;
-            margin-bottom: 20px;
-        }
+        .main-title { font-size: 30px; font-weight: 600; text-align: center; padding: 15px; margin-bottom: 10px; }
+        .subtext { font-size: 16px; color: gray; text-align: center; margin-bottom: 20px; }
         .warn-box {
-            background-color: #fff3cd;
-            color: #856404;
-            padding: 12px 20px;
-            border-radius: 12px;
-            border: 1px solid #ffeeba;
-            margin: 20px 0;
-            text-align: center;
+            background-color: #fff3cd; color: #856404; padding: 12px 20px;
+            border-radius: 12px; border: 1px solid #ffeeba; margin: 20px 0; text-align: center;
         }
         </style>
-        """, unsafe_allow_html=True
-    )
-    st.markdown(
-    """
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
     <div style="
         background-color: #ffffff;
         border: 1px solid #ddd;
@@ -125,12 +99,9 @@ def maintenance_monitoring():
             센서 기반 실시간 예측을 통해 유지보수 필요 여부를 분석합니다.
         </p>
     </div>
-    """, unsafe_allow_html=True
-)
+    """, unsafe_allow_html=True)
 
-
-    
-
+    # 초기화 및 설정
     if st.sidebar.button("🔄 시퀀스 초기화"):
         st.session_state.machine_sequences = {mid: [] for mid in range(1, 51)}
     if 'machine_sequences' not in st.session_state:
@@ -151,67 +122,54 @@ def maintenance_monitoring():
             st.markdown(f"<p class='subtext'>⏰ 예측 시각: {now_time}</p>", unsafe_allow_html=True)
 
             colA, colB, colC = st.columns(3)
-            with colA:
-                st.metric("🧯 유지보수 필요 머신 수", len(filtered))
-            with colB:
-                st.metric("🛠 전체 머신 수", len(df))
-            with colC:
-                avg_rul = round(df['predicted_rul'].mean(), 1) if not df.empty else "-"
-                st.metric("⏳ 평균 잔존수명", f"{avg_rul} hr")
+            colA.metric("🧯 유지보수 필요 머신 수", len(filtered))
+            colB.metric("🛠 전체 머신 수", len(df))
+            avg_rul = round(df['predicted_rul'].mean(), 1) if not df.empty else "-"
+            colC.metric("⏳ 평균 잔존수명", f"{avg_rul} hr")
 
             if not all_ready:
                 st.markdown("""
-             <div style="display:flex;justify-content:center;align-items:center;background-color:#FFFBEA;padding:15px;border-radius:10px;font-size:18px;font-weight:500;color:#665c00;width:100%;">
-             📍 데이터가 부족합니다. 유지보수 상태를 판단할 수 없습니다.
-             </div>
-              """, unsafe_allow_html=True)
+                <div class='warn-box'>
+                📍 데이터가 부족합니다. 유지보수 상태를 판단할 수 없습니다.
+                </div>
+                """, unsafe_allow_html=True)
 
-                col1, col2 = st.columns(2)
-                with col1:
-                    fig = px.pie(df, names="downtime_risk", title="💥 다운타임 리스크 비율", hole=0.4)
-                    fig.update_traces(textinfo='label+percent')
-                    st.plotly_chart(fig, use_container_width=True, key=f"pie_risk_{timestamp_key}")
-                with col2:
-                    fig = px.line(df.sort_values("machine_id"), x="machine_id", y="predicted_rul",
-                                  title="📉 잔존수명 분포", markers=True)
-                    st.plotly_chart(fig, use_container_width=True, key=f"line_rul_{timestamp_key}")
-            else:
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    fig = px.pie(df, names="downtime_risk", title="💥 다운타임 리스크 비율", hole=0.4)
-                    fig.update_traces(textinfo='label+percent')
-                    st.plotly_chart(fig, use_container_width=True, key=f"pie_risk_{timestamp_key}")
-                with col2:
-                    fig = px.line(df.sort_values("machine_id"), x="machine_id", y="predicted_rul",
-                                  title="📉 잔존수명 분포", markers=True)
-                    st.plotly_chart(fig, use_container_width=True, key=f"line_rul_{timestamp_key}")
-                with col3:
-                    failure_df = df["failure_type"].value_counts().reset_index()
-                    failure_df.columns = ["failure_type", "count"]
-                    fig = px.bar(
-                        failure_df,
-                        x="failure_type",
-                        y="count",
-                        labels={"failure_type": "고장유형", "count": "수량"},
-                        title="🔧 고장 유형 분포"
-                    )
-                    st.plotly_chart(fig, use_container_width=True, key=f"bar_failure_{timestamp_key}")
-                with col4:
-                    pie_df = pd.DataFrame({
-                        "status": ["정상", "유지보수 필요"],
-                        "count": [len(df) - len(filtered), len(filtered)]
-                    })
-                    fig = px.pie(pie_df, names="status", values="count", title="🧭 유지보수 비율", hole=0.4)
-                    fig.update_traces(textinfo='label+percent')
-                    st.plotly_chart(fig, use_container_width=True, key=f"pie_maint_{timestamp_key}")
-
-                st.divider()
-                st.markdown("### 📋 유지보수 대상 머신 목록")
-                st.dataframe(
-                    filtered[["machine_id", "failure_type", "predicted_rul", "downtime_risk"] + sensor_cols]
-                    .style.hide(axis='index'),
-                    use_container_width=True
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                fig = px.pie(df, names="downtime_risk", title="💥 다운타임 리스크 비율", hole=0.4)
+                fig.update_traces(textinfo='label+percent')
+                st.plotly_chart(fig, use_container_width=True, key=f"pie_risk_{timestamp_key}")
+            with col2:
+                fig = px.line(df.sort_values("machine_id"), x="machine_id", y="predicted_rul",
+                              title="📉 잔존수명 분포", markers=True)
+                st.plotly_chart(fig, use_container_width=True, key=f"line_rul_{timestamp_key}")
+            with col3:
+                failure_df = df["failure_type"].value_counts().reset_index()
+                failure_df.columns = ["failure_type", "count"]
+                fig = px.bar(
+                    failure_df,
+                    x="failure_type",
+                    y="count",
+                    labels={"failure_type": "고장유형", "count": "수량"},
+                    title="🔧 고장 유형 분포"
                 )
+                st.plotly_chart(fig, use_container_width=True, key=f"bar_failure_{timestamp_key}")
+            with col4:
+                pie_df = pd.DataFrame({
+                    "status": ["정상", "유지보수 필요"],
+                    "count": [len(df) - len(filtered), len(filtered)]
+                })
+                fig = px.pie(pie_df, names="status", values="count", title="🧭 유지보수 비율", hole=0.4)
+                fig.update_traces(textinfo='label+percent')
+                st.plotly_chart(fig, use_container_width=True, key=f"pie_maint_{timestamp_key}")
+
+            st.divider()
+            st.markdown("### 📋 유지보수 대상 머신 목록")
+            st.dataframe(
+                filtered[["machine_id", "failure_type", "predicted_rul", "downtime_risk"] + sensor_cols]
+                .style.hide(axis='index'),
+                use_container_width=True
+            )
 
         elapsed = time.time() - start_time
         time.sleep(max(0, refresh_rate - elapsed))
