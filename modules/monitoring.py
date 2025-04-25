@@ -8,20 +8,12 @@ from tensorflow.keras.models import load_model
 import plotly.graph_objects as go
 import os
 from streamlit_autorefresh import st_autorefresh
+from modules.model_loader import load_all_models
+
+# 모델 캐싱 로드 (최상단에서 한 번만!)
+failure_model, utils, rul_models, risk_model = load_all_models()
 
 def main():
-    @st.cache_resource
-    def load_all_models():
-        with open("modules/model_utils.pkl", "rb") as f:
-            failure_utils = pickle.load(f)
-        with open("modules/random_forest_regressors_by_machine.pkl", "rb") as f:
-            rul_model_dict = pickle.load(f)
-        with open("modules/downtime_risk_model.pkl", "rb") as f:
-            risk_model = pickle.load(f)
-        failure_model = load_model("modules/failure_prediction_model.h5")
-        return failure_model, failure_utils, rul_model_dict, risk_model
-
-    failure_model, utils, rul_model_dict, risk_model = load_all_models()
     scaler = utils['scaler']
     label_encoder = utils['label_encoder']
     sensor_cols = utils['sensor_cols']
@@ -69,7 +61,7 @@ def main():
         downtime_risk_pred = None
 
     try:
-        model_entry = rul_model_dict[selected_machine_id]
+        model_entry = rul_models[selected_machine_id]
         rul_model = model_entry['model']
         rul_scaler = model_entry.get('scaler', None)
         latest_scaled = rul_scaler.transform(latest_array) if rul_scaler else latest_array
@@ -198,3 +190,4 @@ def main():
     st.divider()
     st.subheader("📈 실시간 센서 시계열 그래프")
     st.line_chart(seq_df.set_index('timestamp')[sensor_cols].tail(20))
+
