@@ -1,8 +1,8 @@
 streamlit
-streamlit-option-menu
 pandas
 numpy
-plotly
-tensorflow
-streamlit-autorefresh
 scikit-learn
+tensorflow
+plotly
+streamlit-option-menu
+streamlit-autorefresh
