@@ -17,8 +17,8 @@ st.markdown("""
 # 모듈 임포트
 # ----------------------
 import modules.monitoring as monitoring
-import modules.manual_input as manual_input  # ← 예측 페이지 모듈
-import modules.mainten as mainten  # ← 유지보수 모니터링 모듈 추가
+import modules.manual_input as manual_input
+import modules.mainten as mainten
 
 # ----------------------
 # 대시보드 표지 정의
@@ -28,7 +28,7 @@ def main_page():
     if os.path.exists(image_path):
         st.image(image_path, use_container_width=True)
     else:
-        st.write("이미지 파일을 찾을 수 없습니다.")
+        st.warning("⚠️ 이미지 파일을 찾을 수 없습니다: `ppp.png`")
 
     st.markdown(
         """
@@ -68,13 +68,13 @@ def main_page():
     )
 
 # ----------------------
-# 메뉴 구성 (option_menu 사용)
+# 사이드바 메뉴 구성
 # ----------------------
 with st.sidebar:
     selected = option_menu(
         menu_title="제조 IoT 모니터링",  # 사이드 타이틀
-        options=["대시보드 표지", "유지보수 필요 머신 모니터링", "실시간 머신 모니터링", "센서 입력 기반 예측"],  # 메뉴 항목
-        icons=["house", "activity", "sliders", "cpu"],  # 아이콘
+        options=["대시보드 표지", "유지보수 필요 머신 모니터링", "실시간 머신 모니터링", "센서 입력 기반 예측"],
+        icons=["house", "activity", "sliders", "cpu"],
         menu_icon="cast",
         default_index=0,
         styles={
@@ -95,6 +95,8 @@ with st.sidebar:
     )
 
 # ----------------------
+# 페이지 라우팅
+# ----------------------
 if selected == "대시보드 표지":
     main_page()
 elif selected == "실시간 머신 모니터링":
@@ -102,5 +104,4 @@ elif selected == "실시간 머신 모니터링":
 elif selected == "센서 입력 기반 예측":
     manual_input.main()
 elif selected == "유지보수 필요 머신 모니터링":
-    mainten.maintenance_monitoring()  # 🔥 연결 완료
-
+    mainten.maintenance_monitoring()
