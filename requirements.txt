@@ -5,3 +5,4 @@ numpy
 plotly
 tensorflow
 streamlit-autorefresh
+scikit-learn
