@@ -1,19 +1,11 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pickle
-from tensorflow.keras.models import load_model
+from modules.model_loader import load_all_models  # ✅ 캐시된 모델 로드
 from sklearn.preprocessing import MinMaxScaler, LabelEncoder
 
-
-# ✅ 모델 로드
-with open("modules/model_utils.pkl", "rb") as f:
-    utils = pickle.load(f)
-with open("modules/random_forest_regressors_by_machine.pkl", "rb") as f:
-    rul_models = pickle.load(f)
-with open("modules/downtime_risk_model.pkl", "rb") as f:
-    risk_model = pickle.load(f)
-
+# ✅ 모델 로드 (캐시된 버전)
+failure_model, utils, rul_models, risk_model = load_all_models()
 sensor_cols = utils["sensor_cols"]
 
 def main():
